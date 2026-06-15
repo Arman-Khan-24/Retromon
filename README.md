@@ -1,6 +1,6 @@
 # 🕹️ Retromon
 
-### The system monitor that lets you look into the past.
+### The system monitor that lets you look into the past (Example - Task manager in Windows).
 
 Most monitoring tools tell you what's happening **right now**.  
 Retromon tells you what happened **back then** — without any logging, without any setup, without any performance cost.
