@@ -1,82 +1,44 @@
-# ⏳ Time-Traveling Task Monitor
+# 🕹️ Retromon
 
-![Python](https://img.shields.io/badge/Python-3.6+-blue?logo=python) ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey) ![Dependency](https://img.shields.io/badge/Dependency-psutil-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
+### The system monitor that lets you look into the past.
 
-> A high-performance, cross-platform OS utility that buffers system metric snapshots into a memory-safe O(1) ring buffer, letting you instantly "rewind time" to diagnose historic performance spikes — built from scratch in Python with zero external GUI frameworks.
-
----
-
-## Demo
-
-![Time-Traveling Task Monitor Demo](demo.gif)
+Most monitoring tools tell you what's happening **right now**.  
+Retromon tells you what happened **back then** — without any logging, without any setup, without any performance cost.
 
 ---
 
-## The Problem
+## Why Does This Exist?
 
-Standard OS utilities like Windows Task Manager, Linux `top`, and `htop` are fundamentally blind to intermittent spikes.
+You're working. Your computer freezes for 3 seconds. By the time you alt-tab to check, everything looks normal.
 
-- If your system hits 100% CPU for 2 seconds, by the time you open Task Manager, the offending process has already returned to normal or crashed out.
-- You're left with no actionable data unless you log gigabytes of performance traces over hours.
+What just happened? You'll never know — unless you were already recording.
 
-**There is no built-in way to look back in time.**
-
----
-
-## The Solution
-
-Press the **Left Arrow Key** to instantly rewind and see exactly which process caused the spike, exactly when it happened — with zero performance overhead and zero disk writes.
+**Retromon runs silently in your terminal and records everything.** Press `←` and travel back in time to see exactly which process spiked your CPU, exactly when it happened.
 
 ---
 
-## Architecture
+## Features
 
-Built on four concurrent pillars, specifically optimized for resource-constrained machines.
-
-### 1. Data Collector (OS Metrics)
-The `DataCollector` class uses `psutil` to interface directly with kernel data. On every tick it reads global CPU %, global RAM usage, iterates all active PIDs, tracks CPU deltas, and bundles the top 20 consuming processes into a `SystemSnapshot`.
-
-### 2. O(1) Ring Buffer (Memory Safety)
-A custom fixed-size `RingBuffer` pre-allocated at `[None] * 600` — 10 minutes of history. When full, a pointer wraps to index `0` and overwrites the oldest snapshot. Memory usage is identical at second 1 and hour 10. No unbounded growth, no GC pressure.
-
-### 3. Concurrency Engine (Background Thread)
-A background `daemon` thread runs a precision 1Hz timer — triggering the collector and pushing to the buffer independently of the UI thread. A `threading.Lock()` mutex prevents data corruption if a keystroke read and a buffer write collide at the same microsecond.
-
-### 4. Time-Machine Interface (Terminal UI)
-The main thread owns rendering and keystroke interception. A custom `get_keypress()` detects the OS at runtime — using `msvcrt` on Windows and `termios` + `select` on Linux/macOS — and translates raw ANSI/hex arrow key bytes into logical navigation commands. Zero-flicker rendering via ANSI cursor reset (`\033[H`) paints new values directly over old characters without clearing the screen.
+- ⏪ **Rewind up to 10 minutes** of system history instantly
+- 📊 **Tracks CPU, RAM, and top 20 processes** updated every second
+- 🔒 **O(1) memory usage** — uses the same RAM at hour 10 as it does at second 1
+- 🧵 **Non-blocking UI** — background thread collects data while you navigate history
+- 💻 **Truly cross-platform** — runs identically on Windows, Linux, and macOS
+- ⚡ **Zero dependencies** beyond one lightweight library (`psutil`)
+- 🖥️ **Pure terminal** — no Electron, no GUI framework, no browser
 
 ---
 
-## System Diagram
-
-```mermaid
-graph TD
-    A[Background Thread] -->|1-sec intervals| B(DataCollector: Read Kernel)
-    B --> C{RingBuffer Lock}
-    C -->|Push / Overwrite| D((Fixed Memory Array))
-    
-    E[Main UI Thread] -->|Read Keyboard| F(get_keypress: Non-blocking)
-    F -->|Left/Right| G[Adjust Time Offset]
-    G --> C
-    C -->|Read at Offset| H[Render Native ANSI GUI]
-```
-
----
-
-## Installation
-
-Runs on Windows, Linux, and macOS. No compilers, no heavy dependencies.
-
-**Requirements:** Python 3.6+
+## Quick Start
 
 ```bash
-git clone https://github.com/Arman-Khan-24/OS-RELATED.git
-cd OS-RELATED
+git clone https://github.com/Arman-Khan-24/Retromon.git
+cd Retromon
 pip install psutil
 python app.py
 ```
 
-Windows users can double-click `run.bat` instead.
+> Windows users: double-click `run.bat`
 
 ---
 
@@ -84,11 +46,69 @@ Windows users can double-click `run.bat` instead.
 
 | Key | Action |
 |---|---|
-| `←` Left Arrow | Rewind time |
-| `→` Right Arrow | Forward time |
-| `Spacebar` | Jump to live view |
+| `←` Left Arrow | Go back 1 second |
+| `→` Right Arrow | Go forward 1 second |
+| `Space` | Jump to live view |
 | `Q` | Quit |
 
 ---
 
-*Personal project — built to solve a real gap in OS diagnostic tooling.*
+## How It Works
+
+Retromon is built on four components working together:
+
+```mermaid
+graph TD
+    A[Background Thread] -->|Every 1 second| B(DataCollector)
+    B -->|Reads kernel data| C{Ring Buffer Lock}
+    C -->|Push / Overwrite oldest| D((Fixed Memory Array\n600 slots))
+
+    E[Main UI Thread] -->|Listens for keypress| F(get_keypress)
+    F -->|← or →| G[Adjust Time Offset]
+    G --> C
+    C -->|Read at offset| H[Render Terminal UI]
+```
+
+### DataCollector
+Interfaces with your OS kernel via `psutil`. Every tick, it reads global CPU %, global RAM usage, and iterates all active PIDs — tracking CPU deltas and packaging the top 20 processes into a `SystemSnapshot`.
+
+### Ring Buffer
+A fixed-size array of 600 slots pre-allocated at startup. When full, a pointer wraps to index `0` and silently overwrites the oldest entry. This is why Retromon's memory footprint never grows — it operates in true **O(1) space**.
+
+### Concurrency Engine
+A background `daemon` thread runs the collector on a 1Hz timer, completely independent of the UI. A `threading.Lock()` mutex ensures that if you press an arrow key at the exact microsecond a new snapshot is being written, neither the read nor the write corrupts the other.
+
+### Terminal UI
+Zero-flicker rendering via ANSI cursor reset (`\033[H`) — new values are painted directly over old characters without clearing the screen. Arrow key interception is handled natively: `msvcrt` on Windows, `termios` + `select` on Linux/macOS, translating raw hex/ANSI bytes into logical navigation commands.
+
+---
+
+## Requirements
+
+- Python 3.6+
+- psutil (`pip install psutil`)
+- Works on Windows, Linux, macOS
+
+---
+
+## Who Is This For?
+
+- **Developers** debugging intermittent performance issues
+- **Students** learning OS concepts like ring buffers, threading, and mutex locks in a real working project
+- **Power users** who want more than Task Manager gives them
+
+---
+
+## Contributing
+
+Pull requests are welcome. If you find a bug or want to add a feature (export to CSV, configurable buffer size, per-core CPU tracking), open an issue first to discuss.
+
+---
+
+## License
+
+MIT — free to use, fork, and build on.
+
+---
+
+*Built because Task Manager only shows you the present. Sometimes you need the past.*
