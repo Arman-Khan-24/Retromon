@@ -34,7 +34,7 @@ The first command needs Linux or macOS. The sampling-only command also works wit
 
 28 local regression tests pass. They cover rollover, stable rewind, expired selections, unavailable fields, reused process IDs, CPU/RAM leader retention, partial and queued keys, compact layouts, sanitized names, collector recovery, and real Linux terminal navigation, resizing, and restoration after quit or Ctrl+C.
 
-CI is configured for Python 3.10 and 3.13 on Linux, Windows, and macOS. Those hosted jobs have not been run in this session. Native Windows/macOS console behavior is not claimed as locally verified.
+The [six-job CI matrix passed](https://github.com/Arman-Khan-24/Retromon/actions/runs/43561141973) for Python 3.10 and 3.13 on Linux, Windows, and macOS. Linux/macOS jobs passed all 28 tests, including pseudo-terminal navigation, resizing, and restoration. Windows jobs passed 26 tests and skipped the two POSIX terminal tests; native interactive Windows console behavior remains unverified. Hosted PTY tests do not establish compatibility with every terminal emulator. [Latest CI results](https://github.com/Arman-Khan-24/Retromon/actions/workflows/tests.yml).
 
 ## Results
 

@@ -13,6 +13,7 @@ Record recent activity, revisit a timestamp, and inspect the processes behind it
 [**Get started**](#quick-start) · [**Features**](#features) · [**Benchmarks**](#benchmarks) · [**Documentation**](#documentation) · [**Report an issue**][issues-link]
 
 [![Python 3.10 or later][python-badge]](pyproject.toml)
+[![Tests][tests-badge]][ci-link]
 [![MIT license][license-badge]](LICENSE)
 [![Runtime dependency: psutil][runtime-badge]](pyproject.toml)
 [![GitHub stars][stars-badge]][stars-link]
@@ -198,11 +199,11 @@ Native keyboard handling is implemented for **Windows, Linux, and macOS**. Verif
 
 | Platform | Native input path | Runtime verification |
 | :--- | :--- | :--- |
-| Windows | `msvcrt` | Native console verification pending |
-| Linux | `select`, `termios`, `tty` | **28 local tests passed**, including real terminal interaction |
-| macOS | `select`, `termios`, `tty` | Native terminal verification pending |
+| Windows | `msvcrt` | **26 CI tests passed**; native interactive console verification pending |
+| Linux | `select`, `termios`, `tty` | **28 local and CI tests passed**, including POSIX terminal interaction |
+| macOS | `select`, `termios`, `tty` | **28 CI tests passed**, including POSIX terminal interaction |
 
-A GitHub Actions workflow is configured for **Python 3.10 and 3.13 on all three platforms**. Hosted jobs have not been run in this session. The Windows suite skips POSIX pseudo-terminal tests.
+The full six-job matrix passed for **Python 3.10 and 3.13 on all three platforms**: [verified run](https://github.com/Arman-Khan-24/Retromon/actions/runs/43561141973). Linux/macOS tests exercise navigation, resizing, and terminal restoration in pseudo-terminals. Windows jobs skip those two POSIX tests; native interactive Windows console behavior remains unverified. [View latest CI results][ci-link].
 
 ## How it works
 
@@ -299,7 +300,7 @@ No. Retromon is an observation tool; it does not kill processes or modify their 
 
 Bug reports, improvements, and documentation fixes are welcome. For larger changes, [open an issue][issues-link] first to discuss the scope.
 
-Useful contributions include native Windows/macOS verification, clearer terminal layouts, and reproducible performance measurements. Include the OS, Python version, terminal, and reproduction steps when reporting a problem.
+Useful contributions include native Windows console testing, terminal-emulator coverage, clearer layouts, and reproducible performance measurements. Include the OS, Python version, terminal, and reproduction steps when reporting a problem.
 
 [**Report a bug**][issues-link] · [**Open a pull request**][pulls-link]
 
@@ -320,6 +321,8 @@ Useful contributions include native Windows/macOS verification, clearer terminal
 <!-- Links -->
 
 [repo-link]: https://github.com/Arman-Khan-24/Retromon
+[ci-link]: https://github.com/Arman-Khan-24/Retromon/actions/workflows/tests.yml
+[tests-badge]: https://img.shields.io/github/actions/workflow/status/Arman-Khan-24/Retromon/tests.yml?branch=main&style=flat-square&label=Tests&labelColor=151c26
 [issues-link]: https://github.com/Arman-Khan-24/Retromon/issues
 [pulls-link]: https://github.com/Arman-Khan-24/Retromon/pulls
 [stars-link]: https://github.com/Arman-Khan-24/Retromon/stargazers
