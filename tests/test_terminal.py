@@ -56,6 +56,17 @@ class TerminalTests(unittest.TestCase):
     def plain(self, text):
         return re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]", "", text)
 
+    def wait_for_exit(self):
+        # TCSADRAIN can wait for the PTY reader during terminal restoration.
+        output = []
+        deadline = self.time.monotonic() + 3
+        while self.child.poll() is None:
+            if self.time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(self.child.args, 3)
+            output.append(self.read_for(0.05))
+        output.append(self.read_for(0.05))
+        return "".join(output)
+
     def test_navigation_resize_escape_and_terminal_restoration(self):
         first = self.read_for(2.2)
         self.assertIn("[LIVE]", self.plain(first))
@@ -78,8 +89,7 @@ class TerminalTests(unittest.TestCase):
         for frame in restored.split("\x1b[H")[1:]:
             self.assertLessEqual(frame.count("\n"), 30)
         os.write(self.master, b"q")
-        self.child.wait(timeout=3)
-        output = self.read_for(0.05)
+        output = self.wait_for_exit()
         self.assertEqual(self.child.returncode, 0)
         self.assertIn("\x1b[?25h", output)
         self.assertIn("\x1b[?1049l", output)
@@ -89,8 +99,7 @@ class TerminalTests(unittest.TestCase):
         import signal
         self.read_for(0.4)
         self.child.send_signal(signal.SIGINT)
-        self.child.wait(timeout=3)
-        output = self.read_for(0.05)
+        output = self.wait_for_exit()
         self.assertEqual(self.child.returncode, 0)
         self.assertIn("\x1b[?25h", output)
         self.assertEqual(self.termios.tcgetattr(self.slave), self.settings)
