@@ -56,6 +56,15 @@ class TerminalTests(unittest.TestCase):
     def plain(self, text):
         return re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]", "", text)
 
+    def read_until(self, *texts):
+        output = ""
+        deadline = self.time.monotonic() + 3
+        while self.time.monotonic() < deadline:
+            output += self.read_for(0.05)
+            if all(text in self.plain(output) for text in texts):
+                return output
+        self.fail(f"Terminal did not show {texts!r}: {self.plain(output)!r}")
+
     def wait_for_exit(self):
         # TCSADRAIN can wait for the PTY reader during terminal restoration.
         output = []
@@ -81,20 +90,20 @@ class TerminalTests(unittest.TestCase):
         first = self.read_for(2.2)
         self.assertIn("[LIVE]", self.plain(first))
         os.write(self.master, b"\x1b[D")
-        rewind = self.plain(self.read_for(0.2))
+        rewind = self.plain(self.read_until("[REWIND]"))
         clocks = re.findall(r"(\d\d:\d\d:\d\d)\s+\[REWIND\]", rewind)
         self.assertTrue(clocks)
         selected_clock = clocks[-1]
         later = self.plain(self.read_for(1.3))
         self.assertIn(selected_clock + "  [REWIND]", later)
         os.write(self.master, b"\x1bm ")
-        resumed = self.plain(self.read_for(0.25))
+        resumed = self.plain(self.read_until("[LIVE]", "MEM sort"))
         self.assertIn("[LIVE]", resumed)
         self.assertIn("MEM sort", resumed)
         self.resize(30, 10)
-        self.assertIn("Window too small", self.plain(self.read_for(0.2)))
+        self.assertIn("Window too small", self.plain(self.read_until("Window too small")))
         self.resize(100, 32)
-        restored = self.read_for(0.2)
+        restored = self.read_until("SYSTEM RECORDER")
         self.assertIn("SYSTEM RECORDER", restored)
         for frame in restored.split("\x1b[H")[1:]:
             self.assertLessEqual(frame.count("\n"), 30)
@@ -107,7 +116,7 @@ class TerminalTests(unittest.TestCase):
 
     def test_interrupt_restores_terminal(self):
         import signal
-        self.read_for(0.4)
+        self.read_until("[LIVE]")
         self.child.send_signal(signal.SIGINT)
         output = self.wait_for_exit()
         self.assertEqual(self.child.returncode, 0)
