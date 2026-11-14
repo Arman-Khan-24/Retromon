@@ -67,6 +67,16 @@ class TerminalTests(unittest.TestCase):
         output.append(self.read_for(0.05))
         return "".join(output)
 
+    def assert_terminal_restored(self):
+        actual = self.termios.tcgetattr(self.slave)
+        expected = self.settings.copy()
+        if sys.platform == "darwin":
+            # Darwin sets PENDIN when ICANON is restored; it is input queue state.
+            # https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/tty.c
+            actual[3] &= ~self.termios.PENDIN
+            expected[3] &= ~self.termios.PENDIN
+        self.assertEqual(actual, expected)
+
     def test_navigation_resize_escape_and_terminal_restoration(self):
         first = self.read_for(2.2)
         self.assertIn("[LIVE]", self.plain(first))
@@ -93,7 +103,7 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual(self.child.returncode, 0)
         self.assertIn("\x1b[?25h", output)
         self.assertIn("\x1b[?1049l", output)
-        self.assertEqual(self.termios.tcgetattr(self.slave), self.settings)
+        self.assert_terminal_restored()
 
     def test_interrupt_restores_terminal(self):
         import signal
@@ -102,7 +112,7 @@ class TerminalTests(unittest.TestCase):
         output = self.wait_for_exit()
         self.assertEqual(self.child.returncode, 0)
         self.assertIn("\x1b[?25h", output)
-        self.assertEqual(self.termios.tcgetattr(self.slave), self.settings)
+        self.assert_terminal_restored()
 
 
 if __name__ == "__main__":
