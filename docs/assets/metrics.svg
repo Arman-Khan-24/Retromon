@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="200" viewBox="0 0 1200 200" role="img" aria-labelledby="title description">
+  <title id="title">Retromon measured on an Intel i3-4005U</title>
+  <desc id="description">An eleven-minute Linux benchmark recorded 28.2 MiB peak resident memory and 89.9 percent fewer idle redraws. History retains 600 snapshots. 28 regression tests passed locally on Linux.</desc>
+  <rect width="1200" height="200" rx="20" fill="#111b26"/>
+  <rect x=".5" y=".5" width="1199" height="199" rx="20" fill="none" stroke="#2e414c"/>
+  <g stroke="#2b3b47"><path d="M310 28v144M605 28v144M900 28v144"/></g>
+  <g font-family="Arial,Helvetica,sans-serif">
+    <g fill="#83e2df" font-size="43" font-weight="700"><text x="38" y="83">28.2 MiB</text><text x="345" y="83">89.9%</text><text x="645" y="83">600</text><text x="938" y="83">28</text></g>
+    <g fill="#eef4f8" font-size="17" font-weight="600"><text x="38" y="119">Peak observed RAM</text><text x="345" y="119">Fewer idle redraws</text><text x="645" y="119">History snapshots</text><text x="938" y="119">Regression tests</text></g>
+    <g fill="#97abbe" font-size="13"><text x="38" y="151">11-minute Linux run on an i3</text><text x="345" y="151">Compared with original build</text><text x="645" y="151">Bounded, in-memory retention</text><text x="938" y="151">Verified locally on Linux</text></g>
+  </g>
+</svg>

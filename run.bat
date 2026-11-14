@@ -1,3 +1,8 @@
 @echo off
-echo Starting Time-Traveling Task Monitor...
-python app.py
+cd /d "%~dp0"
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" app.py %*
+) else (
+    python app.py %*
+)
+if errorlevel 1 pause

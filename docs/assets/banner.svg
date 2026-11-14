@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title description">
+  <title id="title">Retromon — Rewind your system</title>
+  <desc id="description">A dark terminal-inspired cover with a rewind symbol, a history track, and the words Rewind your system. A lightweight terminal monitor with a ten-minute memory.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1"><stop stop-color="#0e1420"/><stop offset="1" stop-color="#14272a"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#83e2df"/><stop offset="1" stop-color="#b0ef98"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#83e2df" stop-opacity=".12"/><stop offset="1" stop-color="#83e2df" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#8bd5ca" stroke-opacity=".05"/></pattern>
+    <clipPath id="rounded"><rect width="1200" height="420" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#rounded)">
+  <rect width="1200" height="420" rx="24" fill="url(#background)"/>
+  <rect width="1200" height="420" rx="24" fill="url(#grid)"/>
+  <ellipse cx="1020" cy="200" rx="330" ry="300" fill="url(#glow)"/>
+  <rect x=".5" y=".5" width="1199" height="419" rx="24" fill="none" stroke="#30434b"/>
+  <g transform="translate(58 48)">
+    <rect width="42" height="42" rx="11" fill="#83e2df" fill-opacity=".1" stroke="#83e2df" stroke-opacity=".45"/>
+    <path d="M18 14 10 21l8 7M29 14l-8 7 8 7" fill="none" stroke="#83e2df" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <text x="115" y="77" fill="#e7f0f1" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1">retromon</text>
+  <text x="60" y="162" fill="#83e2df" font-family="monospace" font-size="12" letter-spacing="3">YOUR SYSTEM, WITH A MEMORY.</text>
+  <text x="56" y="230" fill="#f1f5fa" font-family="Arial,Helvetica,sans-serif" font-size="65" font-weight="700" letter-spacing="-2">Rewind your system.</text>
+  <text x="60" y="270" fill="#a8b8c9" font-family="Arial,Helvetica,sans-serif" font-size="19">A lightweight terminal monitor with a ten-minute memory.</text>
+  <g font-family="monospace" font-size="12" fill="#c8d9db">
+    <rect x="60" y="306" width="146" height="34" rx="7" fill="#1b2b34" stroke="#2c444c"/>
+    <text x="77" y="328">600 snapshots</text>
+    <rect x="216" y="306" width="146" height="34" rx="7" fill="#1b2b34" stroke="#2c444c"/>
+    <text x="234" y="328">1 Hz sampling</text>
+    <rect x="372" y="306" width="130" height="34" rx="7" fill="#1b2b34" stroke="#2c444c"/>
+    <text x="389" y="328">CPU + RAM</text>
+    <rect x="512" y="306" width="146" height="34" rx="7" fill="#1b2b34" stroke="#2c444c"/>
+    <text x="529" y="328">Pure terminal</text>
+  </g>
+  <g transform="translate(896 75)" fill="none" stroke="url(#accent)">
+    <circle cx="115" cy="115" r="92" stroke-width="1.5" opacity=".28"/>
+    <circle cx="115" cy="115" r="67" stroke-width="1" stroke-dasharray="2 8" opacity=".5"/>
+    <path d="M151 70a58 58 0 1 1-76 10" stroke-width="5" stroke-linecap="round"/>
+    <path d="m74 58-1 28 28-1" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M115 82v34l23 14" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="115" cy="115" r="4" fill="#83e2df" stroke="none"/>
+  </g>
+  <path d="M60 378H1140" stroke="#2a414b" stroke-width="2"/>
+  <path d="M60 378H860" stroke="url(#accent)" stroke-width="2" opacity=".65"/>
+  <circle cx="860" cy="378" r="5" fill="#83e2df"/>
+  <g font-family="monospace" font-size="10" letter-spacing="2" fill="#8298ac"><text x="60" y="400">PAST</text><text x="1105" y="400">LIVE</text></g>
+  </g>
+</svg>

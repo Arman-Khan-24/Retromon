@@ -1,220 +1,288 @@
-import os
-import sys
-import psutil
-import time
-import threading
-from typing import List, Dict
+"""Retromon: bounded system history with a native terminal dashboard."""
 
-# Cross-platform dependencies
-is_windows = (os.name == 'nt')
-if is_windows:
+import argparse
+from dataclasses import dataclass, field
+from heapq import nlargest
+import os
+import shutil
+import sys
+import threading
+import time
+from typing import Dict, List, Optional
+
+import psutil
+from terminal_ui import render_dashboard
+
+IS_WINDOWS = os.name == "nt"
+if IS_WINDOWS:
     import msvcrt
 else:
     import select
     import termios
     import tty
 
-# ANSI Codes for native terminal UI
-ANSI_RESET = "\033[0m"
-ANSI_BOLD = "\033[1m"
-ANSI_GREEN = "\033[32m"
-ANSI_YELLOW = "\033[33m"
-ANSI_RED = "\033[31m"
-ANSI_CYAN = "\033[36m"
-ANSI_REVERSE = "\033[7m"
-
 HISTORY_CAPACITY = 600
+SAMPLE_INTERVAL = 1.0
+PROCESS_LIMIT = 20
 
+
+@dataclass
 class SystemSnapshot:
-    def __init__(self, global_cpu: float, global_mem: float, processes: List[Dict]):
-        self.global_cpu = global_cpu
-        self.global_mem = global_mem
-        self.processes = processes
+    global_cpu: Optional[float]
+    global_mem: float
+    processes: List[Dict]
+    timestamp: float = field(default_factory=time.time)
+    monotonic: float = field(default_factory=time.monotonic)
+    memory_used: int = 0
+    memory_total: int = 0
+    process_count: int = 0
+    sequence: int = -1
+
 
 class DataCollector:
+    def __init__(self):
+        self._known_processes = set()
+        self._primed = False
+
     def collect(self) -> SystemSnapshot:
-        global_cpu = psutil.cpu_percent(interval=None)
-        mem = psutil.virtual_memory()
-        global_mem = mem.percent
-        
-        processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+        # Initialize baselines in the same thread that takes later samples.
+        cpu = psutil.cpu_percent(interval=None)
+        memory = psutil.virtual_memory()
+        processes, known = [], set()
+        attrs = ["pid", "create_time", "cpu_percent", "memory_percent"]
+        for proc in psutil.process_iter(attrs, ad_value=None):
             try:
-                cpu = proc.info['cpu_percent'] or 0.0
-                mem_p = proc.info['memory_percent'] or 0.0
-                
-                processes.append({
-                    'pid': proc.info['pid'],
-                    'name': proc.info['name'][:25], # truncate
-                    'cpu': cpu,
-                    'mem': mem_p
-                })
+                info = proc.info
+                identity = (info["pid"], info["create_time"])
+                known.add(identity)
+                # A new process has no previous CPU delta; that is not 0%.
+                process_cpu = info["cpu_percent"] if info["create_time"] is not None and identity in self._known_processes else None
+                processes.append((proc, {"pid": info["pid"], "created": info["create_time"],
+                                         "cpu": process_cpu, "mem": info["memory_percent"]}))
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-                
-        # Sort by CPU descending
-        processes.sort(key=lambda p: p['cpu'], reverse=True)
-        top_processes = processes[:20] # Bounds the array to top 20 UI limits
-        
-        return SystemSnapshot(global_cpu, global_mem, top_processes)
+                continue
+        # At most 40 records, preserving memory leaders as well as CPU leaders.
+        leaders = {}
+        for metric in ("cpu", "mem"):
+            for proc, record in nlargest(PROCESS_LIMIT, processes, key=lambda item: item[1][metric] or 0):
+                leaders[(record["pid"], record["created"])] = (proc, record)
+        retained = []
+        for proc, record in leaders.values():
+            try:
+                # psutil caches Process objects. is_running also detects reused PIDs.
+                if not proc.is_running():
+                    continue
+                try:
+                    record["name"] = proc.name() or "<unavailable>"
+                except (psutil.AccessDenied, psutil.ZombieProcess):
+                    record["name"] = "<unavailable>"
+                retained.append(record)
+            except psutil.NoSuchProcess:
+                continue
+        snap = SystemSnapshot(cpu if self._primed else None, memory.percent, retained,
+                              memory_used=memory.total - memory.available,
+                              memory_total=memory.total, process_count=len(processes))
+        self._primed = True
+        self._known_processes = known
+        return snap
+
 
 class RingBuffer:
     def __init__(self, capacity: int):
-        self.capacity = capacity
-        # Pre-allocate array bounds to mimic C++ O(1) buffer logic
-        self.buffer = [None] * capacity
-        self.tail = 0
-        self.size = 0
+        if capacity < 1:
+            raise ValueError("History capacity must be positive")
+        self.capacity, self.buffer = capacity, [None] * capacity
+        self.tail, self.size, self.next_sequence = 0, 0, 0
         self.lock = threading.Lock()
-        
-    def push(self, item):
+
+    def push(self, item: SystemSnapshot):
         with self.lock:
+            item.sequence = self.next_sequence
+            self.next_sequence += 1
             self.buffer[self.tail] = item
             self.tail = (self.tail + 1) % self.capacity
-            if self.size < self.capacity:
-                self.size += 1
-                
+            self.size = min(self.size + 1, self.capacity)
+
     def get_from_newest(self, age: int):
         with self.lock:
-            if self.size == 0 or age >= self.size:
+            if age < 0 or age >= self.size:
                 return None
-            newest_idx = (self.tail + self.capacity - 1) % self.capacity
-            target_idx = (newest_idx + self.capacity - age) % self.capacity
-            return self.buffer[target_idx]
+            return self.buffer[(self.tail - 1 - age) % self.capacity]
 
-def clear_screen():
-    sys.stdout.write("\033[H")
+    def view(self, sequence=None):
+        """Read consistent history, reporting overwritten selections."""
+        with self.lock:
+            if not self.size:
+                return None, [], False
+            oldest, newest = self.next_sequence - self.size, self.next_sequence - 1
+            expired = sequence is not None and sequence < oldest
+            selected = newest if sequence is None else max(oldest, min(sequence, newest))
+            snapshot = self.buffer[(self.tail - 1 - (newest - selected)) % self.capacity]
+            history = [self.buffer[(self.tail - self.size + i) % self.capacity] for i in range(self.size)]
+            return snapshot, history, expired
 
-def get_keypress():
-    """Returns 'LEFT', 'RIGHT', 'SPACE', 'QUIT', or None cross-platform"""
-    if is_windows:
-        if msvcrt.kbhit():
-            ch = msvcrt.getch()
-            if ch in (b'q', b'Q'): return 'QUIT'
-            if ch == b' ': return 'SPACE'
-            if ch in (b'\xe0', b'\x00'): 
-                ext = msvcrt.getch()
-                if ext == b'K': return 'LEFT'
-                if ext == b'M': return 'RIGHT'
-    else:
-        # Check standard input for UNIX
-        dr, dw, de = select.select([sys.stdin], [], [], 0)
-        if dr:
-            ch = sys.stdin.read(1)
-            if ch in ('q', 'Q'): return 'QUIT'
-            if ch == ' ': return 'SPACE'
-            if ch == '\033': # Escape sequence for arrow keys
-                ch2 = sys.stdin.read(1)
-                ch3 = sys.stdin.read(1)
-                if ch2 == '[':
-                    if ch3 == 'D': return 'LEFT'
-                    if ch3 == 'C': return 'RIGHT'
-    return None
 
-def run_app():
-    sys.stdout.write("\033[?25l") # Hide native cursor
-    
-    # Warmup calculations
-    psutil.cpu_percent(interval=None)
-    for p in psutil.process_iter(['cpu_percent']): pass
-    
-    buffer = RingBuffer(HISTORY_CAPACITY)
-    collector = DataCollector()
-    
-    is_running = True
-    
-    def engine_loop():
-        while is_running:
-            t0 = time.time()
-            snap = collector.collect()
-            buffer.push(snap)
-            elapsed = time.time() - t0
-            
-            # Sub-second precision sleep to lock tick-rate over older CPUs
-            sleep_time = max(0, 1.0 - elapsed)
-            time.sleep(sleep_time)
+class KeyReader:
+    """Decode queued bytes without blocking on incomplete escape sequences."""
 
-    engine_thread = threading.Thread(target=engine_loop)
-    engine_thread.daemon = True
-    engine_thread.start()
-    
-    current_time_offset = 0
-    
-    try:
-        while is_running:
-            key = get_keypress()
-            if key == 'QUIT':
-                is_running = False
-                break
-            elif key == 'LEFT':
-                current_time_offset += 1
-            elif key == 'RIGHT':
-                current_time_offset = max(0, current_time_offset - 1)
-            elif key == 'SPACE':
-                current_time_offset = 0
+    def __init__(self):
+        self.pending = bytearray()
+        self.escape_started = None
 
-            # Safe bound locks
-            with buffer.lock:
-                if buffer.size > 0:
-                    current_time_offset = min(current_time_offset, buffer.size - 1)
-            
-            snap = buffer.get_from_newest(current_time_offset)
-            
-            clear_screen()
-            if not snap:
-                sys.stdout.write(f"{ANSI_YELLOW}Warming up System Status: Measuring initial processor delta intervals...{ANSI_RESET}\n")
-                sys.stdout.write("\033[J")
+    def read(self):
+        if IS_WINDOWS:
+            while msvcrt.kbhit():
+                self.pending.extend(msvcrt.getch())
+        elif select.select([sys.stdin], [], [], 0)[0]:
+            data = os.read(sys.stdin.fileno(), 64)
+            if not data:
+                return "QUIT"
+            self.pending.extend(data)
+        return self.decode()
+
+    def decode(self, now=None):
+        now = time.monotonic() if now is None else now
+        simple = {ord("q"): "QUIT", ord(" "): "LIVE", ord("c"): "CPU", ord("m"): "MEM",
+                  ord("h"): "LEFT", ord("l"): "RIGHT"}
+        escapes = {b"\x1b[D": "LEFT", b"\x1b[C": "RIGHT", b"\x1b[A": "UP", b"\x1b[B": "DOWN",
+                   b"\x1b[5~": "BACK10", b"\x1b[6~": "FORWARD10", b"\x1bOD": "LEFT",
+                   b"\x1bOC": "RIGHT", b"\x1bOA": "UP", b"\x1bOB": "DOWN"}
+        windows = {b"K": "LEFT", b"M": "RIGHT", b"H": "UP", b"P": "DOWN", b"I": "BACK10", b"Q": "FORWARD10"}
+        while self.pending:
+            first = self.pending[0]
+            if first in (0, 224):
+                if len(self.pending) >= 2:
+                    key = windows.get(bytes(self.pending[1:2]))
+                    del self.pending[:2]
+                    self.escape_started = None
+                    if key:
+                        return key
+                    continue
+            elif first == 27:
+                for sequence, key in escapes.items():
+                    if self.pending.startswith(sequence):
+                        del self.pending[:len(sequence)]
+                        self.escape_started = None
+                        return key
+                if not any(sequence.startswith(self.pending) for sequence in escapes):
+                    del self.pending[0]
+                    self.escape_started = None
+                    continue
             else:
-                header = f"{ANSI_CYAN}{ANSI_BOLD}====== Time-Traveling Task Monitor ======\t{ANSI_RESET}"
-                if current_time_offset == 0:
-                    status = f"{ANSI_GREEN}[ LIVE VIEW ]                        {ANSI_RESET}"
-                else:
-                    status = f"{ANSI_YELLOW}{ANSI_BOLD}[ REWIND: -{current_time_offset} SECONDS SECURE ]                {ANSI_RESET}"
-                sys.stdout.write(f"{header}{status}\n\n")
-                
-                cpu_color = ANSI_RED if snap.global_cpu > 80.0 else ANSI_GREEN
-                mem_color = ANSI_RED if snap.global_mem > 85.0 else ANSI_GREEN
-                
-                sys.stdout.write(f"{cpu_color}Global CPU Usage: {snap.global_cpu:6.2f}%{ANSI_RESET}\n")
-                sys.stdout.write(f"{mem_color}Global RAM Usage: {snap.global_mem:6.2f}%{ANSI_RESET}\n\n")
-                
-                sys.stdout.write(f"{ANSI_REVERSE}{'PID':<8} {'NAME':<25} {'CPU %':<11} {'MEM %':<11}{ANSI_RESET}\n")
-                
-                lines_printed = 0
-                for proc in snap.processes:
-                    name = proc['name']
-                    sys.stdout.write(f"{proc['pid']:<8} {name:<25} {proc['cpu']:<11.2f} {proc['mem']:<11.2f}\n")
-                    lines_printed += 1
-                    
-                for _ in range(20 - lines_printed):
-                    sys.stdout.write("\n")
-                    
-                sys.stdout.write(f"\n{ANSI_CYAN} Controls | [Left Arrow] Rewind | [Right Arrow] Forward | [SPACE] Live | [q] Quit {ANSI_RESET}\n")
-                sys.stdout.write("\033[J")
-            
-            sys.stdout.flush()
-            time.sleep(0.1) # Fast 10hz rendering loop for instant arrow feedback!
+                del self.pending[0]
+                self.escape_started = None
+                key = simple.get(first + 32 if 65 <= first <= 90 else first)
+                if key:
+                    return key
+                continue
+            if self.escape_started is None:
+                self.escape_started = now
+            if now - self.escape_started < 0.08:
+                return None
+            del self.pending[0]
+            self.escape_started = None
+        return None
+
+
+def collect_history(buffer, collector, stop, status):
+    while not stop.is_set():
+        started = time.monotonic()
+        try:
+            buffer.push(collector.collect())
+            with buffer.lock:
+                status["error"] = None
+        except Exception as exc:
+            # Failed ticks must not silently freeze the UI or discard history.
+            with buffer.lock:
+                status["error"] = f"{type(exc).__name__}: {exc}"
+        stop.wait(max(0, SAMPLE_INTERVAL - (time.monotonic() - started)))
+
+
+def run_app(color=True, ascii_only=False):
+    buffer, stop, status = RingBuffer(HISTORY_CAPACITY), threading.Event(), {"error": None}
+    engine = threading.Thread(target=collect_history, args=(buffer, DataCollector(), stop, status), daemon=True)
+    keys = KeyReader()
+    sequence, sort_by, scroll, notice = None, "cpu", 0, ""
+    previous_state = previous_frame = None
+    sys.stdout.write("\033[?1049h\033[?25l\033[2J")
+    sys.stdout.flush()
+    try:
+        engine.start()
+        while not stop.is_set():
+            latest, key = buffer.get_from_newest(0), keys.read()
+            if key == "QUIT":
+                break
+            if key == "LIVE":
+                sequence, notice, scroll = None, "", 0
+            elif key in ("LEFT", "RIGHT", "BACK10", "FORWARD10") and latest:
+                step = {"LEFT": -1, "RIGHT": 1, "BACK10": -10, "FORWARD10": 10}[key]
+                sequence = max(0, min(latest.sequence, (latest.sequence if sequence is None else sequence) + step))
+                if step > 0 and sequence == latest.sequence:
+                    sequence = None
+                notice, scroll = "", 0
+            elif key in ("CPU", "MEM"):
+                sort_by, scroll = ("cpu" if key == "CPU" else "mem"), 0
+            elif key in ("UP", "DOWN"):
+                scroll = max(0, scroll + (1 if key == "DOWN" else -1))
+            dimensions = shutil.get_terminal_size((80, 24))
+            with buffer.lock:
+                error = status["error"]
+            stale = int(time.monotonic() - latest.monotonic) if latest else 0
+            state = (latest.sequence if latest else -1, sequence, sort_by, scroll,
+                     dimensions, error, stale if stale >= 3 else 0, notice)
+            if state != previous_state:
+                snapshot, history, expired = buffer.view(sequence)
+                if expired:
+                    sequence = snapshot.sequence
+                    notice = "Selected sample expired; showing oldest retained sample."
+                frame, scroll = render_dashboard(snapshot, history, dimensions, live=sequence is None,
+                                                sort_by=sort_by, scroll=scroll, error=error, notice=notice,
+                                                stale=stale, color=color, ascii_only=ascii_only)
+                if frame != previous_frame:
+                    sys.stdout.write("\033[H" + "\r\n".join(line + "\033[K" for line in frame) + "\033[J")
+                    sys.stdout.flush()
+                    previous_frame = frame
+                previous_state = state
+            stop.wait(0.03)
     finally:
-        sys.stdout.write("\033[?25h") 
+        stop.set()
+        if engine.ident is not None:
+            engine.join(timeout=1.5)
+        sys.stdout.write("\033[0m\033[?25h\033[?1049l")
+        sys.stdout.flush()
+
 
 def main():
-    if is_windows:
-        os.system('color')
-        run_app()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-color", action="store_true", help="disable ANSI colors (also respects NO_COLOR)")
+    parser.add_argument("--ascii", action="store_true", help="use ASCII borders and charts")
+    args = parser.parse_args()
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        parser.exit(2, "Retromon needs an interactive terminal. Run 'python app.py' in a terminal window.\n")
+    if not IS_WINDOWS and os.environ.get("TERM") == "dumb":
+        parser.exit(2, "Retromon needs a terminal with ANSI cursor support.\n")
+    color = not args.no_color and "NO_COLOR" not in os.environ
+    encoding = (sys.stdout.encoding or "ascii").lower().replace("-", "")
+    ascii_only = args.ascii or encoding not in ("utf8", "utf_8")
+    if IS_WINDOWS:
+        os.system("color")
+        run_app(color, ascii_only)
     else:
-        # Wrap Linux standard execution with tty/termios mapping to allow
-        # the same raw unblocked keystroke processing Windows provides natively
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
             tty.setcbreak(fd)
-            run_app()
+            run_app(color, ascii_only)
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-if __name__ == '__main__':
+
+def cli():
     try:
         main()
     except KeyboardInterrupt:
-        sys.stdout.write("\033[?25h")
-        sys.exit(0)
+        pass
+
+
+if __name__ == "__main__":
+    cli()

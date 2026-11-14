@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retromon"
+version = "0.1.0"
+description = "A lightweight terminal system monitor with bounded CPU and RAM history"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["psutil>=5.9.6,<8"]
+
+[project.scripts]
+retromon = "app:cli"
+
+[project.urls]
+Repository = "https://github.com/Arman-Khan-24/Retromon"
+
+[tool.setuptools]
+py-modules = ["app", "terminal_ui"]

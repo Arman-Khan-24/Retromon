@@ -1,0 +1,36 @@
+{
+  "sampling_tool_run": {
+    "measured_at_utc": "2026-11-14T03:44:41.965628+00:00",
+    "samples": 60,
+    "interval_seconds": 1.0,
+    "wall_ms": {
+      "median": 50.997,
+      "p95": 64.359,
+      "max": 88.201
+    },
+    "mean_cpu_time_ms": 50.282,
+    "process_count_range": [
+      205,
+      229
+    ],
+    "python": "3.14.9",
+    "psutil": "7.2.2",
+    "method": "First call excluded; collector runs once per second. Wall latency includes OS scheduling; p95 uses nearest rank."
+  },
+  "additional_equivalent_inline_run": {
+    "samples": 60,
+    "interval_seconds": 1,
+    "wall_ms": {
+      "median": 43.123,
+      "p95": 95.249,
+      "max": 137.554
+    },
+    "mean_cpu_time_ms": 47.277,
+    "process_count_range": [
+      204,
+      206
+    ],
+    "python": "3.14.9",
+    "psutil": "7.2.2"
+  }
+}

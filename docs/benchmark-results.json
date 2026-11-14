@@ -1,0 +1,85 @@
+{
+  "baseline_commit": "b80aea3",
+  "updated": {
+    "measured_at_utc": "2026-11-14T03:50:56.710915+00:00",
+    "app": "app.py",
+    "duration_seconds": 660.012,
+    "completed_requested_duration": true,
+    "source_sha256": {
+      "app.py": "4cf912758f6e2f070cf170f94e2ae475414382b4ffb2ac85705caafd4d16be3f",
+      "terminal_ui.py": "8815500ecb635248729fc222b3d7d2dbd7c3cf3be5d320b9d80dc55896a2b638"
+    },
+    "source_changed_during_run": false,
+    "environment": {
+      "os": "Linux-6.18.60-1-lts-x86_64-with-glibc2.44",
+      "python": "3.14.9",
+      "cpu_model": "Intel(R) Core(TM) i3-4005U CPU @ 1.70GHz",
+      "psutil": "7.2.2",
+      "logical_cpus": 4,
+      "host_ram_mib": 3829.99,
+      "process_count_at_end": 204,
+      "terminal": "100x32 POSIX PTY",
+      "colors": "enabled; NO_COLOR removed for both comparison runs"
+    },
+    "rss_mib": {
+      "first_sample": 21.754,
+      "median": 25.348,
+      "peak": 28.188,
+      "final": 28.188
+    },
+    "uss_mib_at_end": 18.121,
+    "mean_cpu_percent_one_logical_core": 6.223,
+    "first_frame_ms": 365.95,
+    "first_snapshot_ms": 499.15,
+    "frames": 661,
+    "frames_per_second": 1.001,
+    "terminal_bytes_per_second": 5800.33,
+    "retained_samples_observed": 600,
+    "full_history_observations": 60,
+    "full_history_rss_mib": {
+      "min": 28.168,
+      "max": 28.188
+    },
+    "exit_code": 0,
+    "method": "One idle live app; 1 Hz sampling; RSS observed once per second; CPU is process CPU time / wall time. Includes interpreter and dependency memory. Shared host, no controlled synthetic load."
+  },
+  "original": {
+    "measured_at_utc": "2026-11-14T03:50:56.885032+00:00",
+    "app": "b80aea3:app.py",
+    "duration_seconds": 660.047,
+    "completed_requested_duration": true,
+    "source_sha256": {
+      "retromon-original-app.py": "3dcc188ec414cb2a8ee7fec88e6dd0dd3ddfd6af9f837958dacd9c4d8f38a270"
+    },
+    "source_changed_during_run": false,
+    "environment": {
+      "os": "Linux-6.18.60-1-lts-x86_64-with-glibc2.44",
+      "python": "3.14.9",
+      "cpu_model": "Intel(R) Core(TM) i3-4005U CPU @ 1.70GHz",
+      "psutil": "7.2.2",
+      "logical_cpus": 4,
+      "host_ram_mib": 3829.99,
+      "process_count_at_end": 202,
+      "terminal": "100x32 POSIX PTY",
+      "colors": "enabled; NO_COLOR removed for both comparison runs"
+    },
+    "rss_mib": {
+      "first_sample": 17.695,
+      "median": 19.887,
+      "peak": 21.594,
+      "final": 21.594
+    },
+    "uss_mib_at_end": 12.191,
+    "mean_cpu_percent_one_logical_core": 6.316,
+    "first_frame_ms": 292.51,
+    "first_snapshot_ms": 393.77,
+    "frames": 6541,
+    "frames_per_second": 9.91,
+    "terminal_bytes_per_second": 15338.33,
+    "retained_samples_observed": 0,
+    "full_history_observations": 0,
+    "full_history_rss_mib": null,
+    "exit_code": 0,
+    "method": "One idle live app; 1 Hz sampling; RSS observed once per second; CPU is process CPU time / wall time. Includes interpreter and dependency memory. Shared host, no controlled synthetic load."
+  }
+}
